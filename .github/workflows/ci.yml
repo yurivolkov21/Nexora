@@ -13,21 +13,41 @@ concurrency:
   group: ${{ github.workflow }}-${{ github.ref }}
   cancel-in-progress: true
 
+# Bố cục JOB SONG SONG (16/11/2026). Trước đó toàn bộ gate là MỘT job trên
+# runner 4 vCPU: `test:int` chạy tuần tự trước tiên (~4 phút, chỉ dùng 1 nhân)
+# rồi 28 task turbo dồn chung 4 nhân (đo lại trên máy 4 nhân: load trung bình
+# ~15). Trung vị 20 run main #915–#1029 là 13,2 phút, trong khi cùng bộ test
+# chạy riêng nhanh gấp 3–7 lần (web 87s riêng so với 263–442s trong CI). Số
+# test chỉ tăng 7% từ 20/10 — nút thắt là tranh nhân, không phải số test.
+# Giờ mỗi job có runner riêng:
+#   int (2 phần) · web · admin · rest (api, libs, mobile, lint, check rời)
+# rồi job `gate` gom kết quả. Ruleset của main đòi check tên `gate` — ĐỪNG đổi
+# tên job đó, và thêm job mới thì nhớ thêm vào `needs` của nó.
+#
+# Phanh chống treo: mặc định GitHub là 360 phút/job, một test treo (promise
+# không bao giờ resolve) sẽ ngốn 6 GIỜ runner. Trần web/admin `testTimeout`
+# 30s từ đợt 09/09 nên `testTimeout` không phải phanh; phanh là
+# `timeout-minutes` của từng job. 15 phút ≈ 3x job dài nhất đo được trên máy 4
+# nhân (~3,5 phút gồm cài đặt) — rà lại con số này sau vài run thật trên CI và
+# mỗi khi thêm bước.
 jobs:
-  gate:
+  # Integration test (apps/api/src/**/*.int.spec.ts — TOÀN BỘ luồng tiền P2 +
+  # bề mặt bảo mật P3a). Trước đây `test:int` chỉ là script rời, không nối vào
+  # CI nào — 6 vòng review lọt qua chính vì thứ này chưa từng chạy trên CI.
+  # Config int đặt `fileParallelism: false` (một DB dùng chung + truncate giữa
+  # các test) nên chạy tuần tự trên 1 nhân; chia file thành 2 phần, mỗi phần
+  # một job với Postgres RIÊNG, là cách duy nhất chạy song song mà không đụng
+  # nhau trong DB.
+  int:
+    name: 'test:int (${{ matrix.shard }}/2)'
     runs-on: ubuntu-latest
-    # Phanh chống treo THẬT SỰ của repo. Trước đây không có dòng này nên mặc
-    # định của GitHub là 360 phút — một test treo (promise không bao giờ resolve)
-    # sẽ ngốn 6 GIỜ runner trước khi bị giết. Từ đợt 09/09 trần testTimeout của
-    # web/admin lên 30s nên `testTimeout` càng không còn là phanh; phanh nằm ở
-    # đây. 25 phút = ~2,5x run xanh dài nhất đo được (10,1 phút) — rà lại con số
-    # này mỗi khi thêm bước vào file.
-    timeout-minutes: 25
-    # Postgres cho integration test (apps/api/src/**/*.int.spec.ts, 9 file /
-    # 72 test — TOÀN BỘ luồng tiền P2 + bề mặt bảo mật P3a). Trước đây
-    # `test:int` chỉ là script rời trong apps/api/package.json, không nối vào
-    # turbo task/CI nào — 6 vòng review lọt qua chính vì thứ này chưa từng
-    # chạy trên CI. Cổng 5432 map ra host giống hệt compose.yaml ở local, vì
+    timeout-minutes: 15
+    strategy:
+      # Phần này đỏ thì phần kia vẫn chạy hết — biết đủ ca hỏng trong một lượt.
+      fail-fast: false
+      matrix:
+        shard: [1, 2]
+    # Cổng 5432 map ra host giống compose.yaml ở local, vì
     # `vitest.int.global-setup.ts` nói chuyện qua TCP tới `localhost:5432`
     # (không phụ thuộc tên container Docker cụ thể).
     services:
@@ -48,46 +68,60 @@ jobs:
     env:
       # `vitest.int.config.ts` tự hard-code DATABASE_URL trỏ `tourism_test`
       # cho tiến trình test — biến này chỉ để rõ ràng/nhất quán với quy ước
-      # DATABASE_URL của repo, globalSetup của test:int tự tạo db đó (idempotent)
-      # rồi `prisma migrate deploy`, KHÔNG cần bước tạo db/migrate riêng ở đây.
+      # DATABASE_URL của repo; globalSetup của test:int tự tạo db đó
+      # (idempotent) rồi `prisma migrate deploy`.
       DATABASE_URL: postgresql://tourism:tourism@localhost:5432/tourism_test
     steps:
       - uses: actions/checkout@v4
-        with:
-          # docs-freshness cần lịch sử commit để đối chiếu với CHANGELOG;
-          # checkout mặc định là shallow depth=1 nên `git log` sẽ rỗng.
-          fetch-depth: 0
-
       - uses: pnpm/action-setup@v4 # đọc packageManager từ package.json
-
       - uses: actions/setup-node@v4
         with:
           node-version: 24
           cache: pnpm
-
       - run: pnpm install --frozen-lockfile
 
-      # test:int chạy TRƯỚC gate — CỐ Ý, đừng đảo lại. Từ ADR-0008 (reconcile
-      # admin lúc onApplicationBootstrap), 4 e2e spec trong task `test` boot cả
-      # AppModule nên chạm bảng User → cần db `tourism_test` ĐÃ migrate. Cơ chế
-      # tạo db + migrate duy nhất là globalSetup của test:int (idempotent, qua
-      # TCP) — cho nó chạy trước là unit e2e có schema, không phải nhân đôi
-      # bước tạo db/migrate trong YAML này. (CI đỏ 21→23/07 vì thiếu điều này.)
-      - run: pnpm test:int
+      - run: pnpm test:int -- --shard=${{ matrix.shard }}/2
 
       # RLS backstop (W2, audit 05/09 cụm 6): chạy NGAY SAU test:int vì đó là
       # lúc db tourism_test chắc chắn đã migrate đầy đủ (globalSetup). Hai
       # bảng mới từng lọt lưới migration hardening 18/07 — script canh bảng
-      # thứ N+1 không lọt được nữa.
+      # thứ N+1 không lọt được nữa. Mọi phần đều migrate đủ nên chỉ cần một.
       - name: RLS bật trên mọi bảng public (scripts/check-rls.sh)
+        if: matrix.shard == 1
         run: ./scripts/check-rls.sh
+
+  web:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Postgres ở đây chỉ để dựng API sống cho build web. Service tự tạo db
+    # `tourism` (POSTGRES_DB mặc định theo user).
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tourism
+          POSTGRES_PASSWORD: tourism
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tourism"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
 
       # Build web cần API SỐNG (ADR-0016, chốt 31/07: "build với API sống +
       # settle() làm lưới" — SSG fetch catalogue lúc prerender). Thiếu khối
-      # này CI đỏ ÂM THẦM từ 31/07 tới 04/08: test:int phía trên vẫn xanh,
-      # rồi build web chết `fetch failed` — không ai hay vì merge kiểu
-      # rebase+ff không chờ check. Postgres service tự tạo db `tourism`
-      # (POSTGRES_DB mặc định theo user), tách khỏi `tourism_test` của int.
+      # này CI đỏ ÂM THẦM từ 31/07 tới 04/08: test:int vẫn xanh, rồi build web
+      # chết `fetch failed` — không ai hay vì merge kiểu rebase+ff không chờ
+      # check. Admin KHÔNG cần khối này (đo 16/11: build admin xanh khi API tắt).
       - name: Migrate + seed db `tourism` rồi mở API nền cho build web
         env:
           DATABASE_URL: postgresql://tourism:tourism@localhost:5432/tourism
@@ -108,29 +142,95 @@ jobs:
       # (NEXT_PUBLIC_* của app Next).
       # NEXT_PUBLIC_SITE_URL: từ vòng vá review W3, metadataBase/siteUrl() cũng
       # fail-fast ở production build (canonical từng có thể rơi về localhost).
-      - run: pnpm turbo run build typecheck test
+      # `--filter` một app vẫn kéo theo `^build` của các lib nó dùng.
+      - run: pnpm turbo run build typecheck test --filter=@tourism/web
         env:
           NEXT_PUBLIC_API_URL: http://localhost:3001
           NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+  admin:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v4
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      # Cùng cặp NEXT_PUBLIC_* như job web để build production giống nhau.
+      - run: pnpm turbo run build typecheck test --filter=@tourism/admin
+        env:
+          NEXT_PUBLIC_API_URL: http://localhost:3001
+          NEXT_PUBLIC_SITE_URL: http://localhost:3000
+
+      # CSP admin là nonce + strict-dynamic: HTML nào prerender TĨNH là trắng
+      # script ở production (dev không lộ). Bảng route Next in ra giấu
+      # /_global-error nên đọc thẳng prerender-manifest (ADR-0038 AMEND 1).
+      # Phải ở CÙNG job với build admin vì đọc `apps/admin/.next`.
+      - name: Route admin không được prerender tĩnh (nonce CSP)
+        run: node scripts/check-admin-prerender.mjs
+
+  # Mọi package còn lại (api, contract, core, i18n, tokens, ui, mobile,
+  # mobile-ui) cùng các check rời chạy nhanh.
+  rest:
+    name: api, libs, mobile, lint
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    # Từ ADR-0008 (reconcile admin lúc onApplicationBootstrap), 4 e2e spec
+    # trong task `test` của api boot cả AppModule nên chạm bảng User → cần db
+    # `tourism_test` ĐÃ migrate. Trước đây việc đó nhờ test:int chạy TRƯỚC
+    # trong cùng job (CI đỏ 21→23/07 vì thiếu điều này); giờ test:int ở job
+    # khác nên job này tự tạo db (POSTGRES_DB) và tự migrate.
+    services:
+      postgres:
+        image: postgres:17-alpine
+        env:
+          POSTGRES_USER: tourism
+          POSTGRES_PASSWORD: tourism
+          POSTGRES_DB: tourism_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U tourism"
+          --health-interval 5s
+          --health-timeout 3s
+          --health-retries 10
+    env:
+      DATABASE_URL: postgresql://tourism:tourism@localhost:5432/tourism_test
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          # docs-freshness cần lịch sử commit để đối chiếu với CHANGELOG;
+          # checkout mặc định là shallow depth=1 nên `git log` sẽ rỗng.
+          fetch-depth: 0
+      - uses: pnpm/action-setup@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 24
+          cache: pnpm
+      - run: pnpm install --frozen-lockfile
+
+      - name: Migrate db `tourism_test` cho e2e spec của api
+        run: pnpm --filter @tourism/api exec prisma migrate deploy
+
+      # Hai bộ lọc loại trừ = mọi package TRỪ web và admin (đã có job riêng).
+      # Thêm app mới vào monorepo thì nó tự rơi vào đây.
+      - run: pnpm turbo run build typecheck test --filter='!@tourism/web' --filter='!@tourism/admin'
 
       # `pnpm gate` KHÔNG chạy Metro bundle. Task turbo của mobile cố ý tên
       # `bundle` chứ không phải `build` (ADR-0040 §5) vì `gate` là vòng lặp
       # TDD, mà `expo export` tốn ~1–2 phút và chạy lại mỗi lần BẤT KỲ package
       # chung nào đổi. Đánh đổi ấy chỉ chấp nhận được khi CI là lưới — step
       # này chính là lưới đó, và "gate xanh" một mình KHÔNG còn bảo chứng
-      # mobile bundle được. Không cần Postgres hay API sống: app mobile chưa
-      # gọi endpoint nào (P5a là template).
+      # mobile bundle được. Bundle không gọi API nên không cần API sống.
       - name: App mobile bundle được (gate không chạy Metro — ADR-0040 §5)
         env:
           EXPO_PUBLIC_API_URL: http://localhost:3001
           EXPO_PUBLIC_WEB_URL: http://localhost:3000
         run: pnpm turbo run bundle --filter=@tourism/mobile
-
-      # CSP admin là nonce + strict-dynamic: HTML nào prerender TĨNH là trắng
-      # script ở production (dev không lộ). Bảng route Next in ra giấu
-      # /_global-error nên đọc thẳng prerender-manifest (ADR-0038 AMEND 1).
-      - name: Route admin không được prerender tĩnh (nonce CSP)
-        run: node scripts/check-admin-prerender.mjs
 
       - run: pnpm lint
 
@@ -146,3 +246,23 @@ jobs:
       - name: CHANGELOG còn theo kịp main không (CLAUDE.md luật 13)
         if: github.ref == 'refs/heads/main'
         run: ./scripts/docs-freshness.sh
+
+  # Check DUY NHẤT mà ruleset của main đòi (tên `gate`). Job này chỉ gom kết
+  # quả: một job con đỏ, bị huỷ hay bị bỏ qua đều làm nó đỏ. `!cancelled()`
+  # thay cho `always()`: run bị concurrency huỷ thì dừng hẳn (hiện "cancelled"
+  # như trước), không chạy tiếp để báo đỏ giả.
+  gate:
+    if: ${{ !cancelled() }}
+    needs: [int, web, admin, rest]
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - name: Mọi job con đều xanh
+        run: |
+          echo 'int=${{ needs.int.result }} web=${{ needs.web.result }} admin=${{ needs.admin.result }} rest=${{ needs.rest.result }}'
+          for result in ${{ join(needs.*.result, ' ') }}; do
+            if [ "$result" != success ]; then
+              echo '::error::Có job con không xanh — xem các job phía trên.'
+              exit 1
+            fi
+          done

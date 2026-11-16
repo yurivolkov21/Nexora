@@ -50,7 +50,7 @@ bị loại và cái giá phải trả. Bản đồ chung của tài liệu ở 
 | --- | --- | --- |
 | [0011](0011-p3b-web-architecture.md) | Kiến trúc web: Next.js 16 và thư viện giao diện dùng chung `libs/shared/ui` | |
 | [0012](0012-typeset-typography.md) | Kiểu chữ cho nội dung dài (bài blog, mô tả tour) | |
-| [0014](0014-web-component-testing.md) | Test tầng component cho web | 1 lần bổ sung |
+| [0014](0014-web-component-testing.md) | Test tầng component cho web | 2 lần bổ sung |
 | [0016](0016-web-data-layer.md) | Tầng dữ liệu web: gọi API qua oRPC, dựng ở server trước, cache theo thẻ và ISR | 4 lần bổ sung |
 | [0018](0018-web-map-library.md) | Bản đồ trang `/contact`: maplibre-gl và OpenFreeMap | 2 lần bổ sung |
 | [0022](0022-tour-detail-tabs.md) | Trang chi tiết tour chia thành 5 tab | |

@@ -8,6 +8,45 @@ Một entry mỗi merge: ngày · hash · nội dung · review findings · "Test
 > Entry đã ghi là BẤT BIẾN (cùng luật `migration.sql`) — archive là di chuyển
 > nguyên văn, không sửa một ký tự.
 
+## 2026-11-16 — Merge tách CI thành các job chạy song song (`e468a69f`, `c1bb4c50`)
+
+Yuri hỏi 16/11 vì sao CI chạy lâu, có phải dồn quá nhiều test. Đo 20 run main xanh (#915 tới #1029): trung vị 13,2
+phút, trong đó bước `turbo run build typecheck test` 6,9 phút (53%) và `test:int` 3,8 phút (29%). Số test chỉ tăng 7%
+từ 20/10 (9196 lên 9815), không có test nào skip. Nút thắt là tranh nhân: cả gate là một job 4 vCPU, `test:int` chạy
+tuần tự trên 1 nhân trước mọi bước, rồi 28 task turbo dồn chung 4 nhân (chạy lại trên máy 4 nhân: load trung bình 15).
+Cùng bộ test chạy riêng nhanh gấp 3 tới 7 lần: web 87s so với 263–442s trong CI, admin 118s so với 308–518s, mobile 32s
+so với 169–280s. Yuri chọn làm ngay trên draft PR, không bỏ test nào. Nhánh `claude/project-thread-nvk09w`,
+[PR #89](https://github.com/yurivolkov21/Tourism-Platform-V2/pull/89), session cloud. Chỉ sửa `.github/workflows/ci.yml`:
+không migration, không biến env, không đổi dependency, không đụng code ứng dụng.
+
+- `e468a69f` (ci): gate thành 6 job. `test:int (1/2)` và `test:int (2/2)` chia file bằng `vitest --shard`, mỗi phần một
+  Postgres riêng vì config int chạy tuần tự trên một DB dùng chung; check RLS ở phần 1. `web` dựng API sống rồi chạy
+  `turbo ... --filter=@tourism/web`. `admin` chạy `--filter=@tourism/admin` và check prerender, không cần API (đo trên
+  máy: build admin xanh khi API tắt). `api, libs, mobile, lint` chạy mọi package còn lại qua hai bộ lọc loại trừ, mobile
+  bundle, Biome, tokens-only và docs-freshness; tự migrate `tourism_test` cho 4 e2e spec của api, việc trước đây nhờ
+  `test:int` chạy trước trong cùng job. Job `gate` cuối gom kết quả và giữ đúng tên check mà ruleset của main đòi, nên
+  ruleset không phải sửa. `timeout-minutes` 15 cho mỗi job làm việc và 5 cho job `gate` (trước là 25 cho cả gate).
+- `c1bb4c50` (fix ci): run đầu đỏ ở job web, bước seed báo `ERR_MODULE_NOT_FOUND` `@tourism/contract/dist`: dist của
+  lib và client Prisma trước đây có sẵn nhờ `test:int` chạy trước. Job web giờ chạy `turbo run build
+  --filter=@tourism/api` trước migrate và seed. Tái hiện trên máy bằng cách xoá dist rồi seed, ra đúng lỗi đó.
+- Docs sweep: ADR-0014 thêm AMEND 2 (phanh chống treo giờ là `timeout-minutes` của từng job).
+
+**Kết quả.** CI của nhánh 3m55s (push) và 4m16s (PR) trên `ffbbfa71`, so với trung vị 13,2 phút; mới đo một commit, runner
+GitHub dao động 30–50% giữa các run. Tổng test trong log các job 9815, bằng đúng run main #1029; `test:int` 556 và 429
+cộng lại 985. Run đầu cũng cho thấy job `gate` đỏ đúng khi một job con đỏ.
+
+**Đề xuất chưa làm (Yuri chưa duyệt).** Giữ cache turbo giữa các run để push chỉ sửa docs khỏi chạy lại các package không
+đổi, nhưng build web và admin phải ngoài cache vì web không phụ thuộc gói api. Giảm chi phí dựng jsdom mỗi file test giao
+diện (khoảng một nửa thời gian worker của web và admin) bằng `isolate: false` hoặc happy-dom, chỉ sau bảo vệ vì đổi cách
+chạy test.
+
+**Review.** Không có lượt review độc lập. Tự kiểm: `actionlint` sạch; `turbo --dry=json` cho thấy ba bộ lọc phủ đủ 28
+task cũ, không trùng; từng job chạy riêng xanh trên máy 4 nhân (admin 2m10s, web 1m47s, phần còn lại 49s và bundle 64s;
+`test:int` 29 và 28 file).
+
+Tests after (CI của nhánh, cùng các bước của `gate:int`): unit 8830 (web 2520, admin 2460, api 1486, mobile 1069,
+contract 833, mobile-ui 259, ui 65, i18n 63, core 49, tokens 26) và int 985. PR không thêm test.
+
 ## 2026-11-16 — Merge vá node-forge, hono, @hono/node-server bắc cầu theo 10 alert Dependabot (`b04a2340`, `59f9a17c`)
 
 Yuri báo 16/11: tab Dependabot có 10 alert mới (#125 tới #134), GitHub đếm "8 moderate, 2 low", khớp đúng 10 GHSA

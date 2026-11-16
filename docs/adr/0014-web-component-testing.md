@@ -181,3 +181,11 @@ không con số trần nào chữa được nó. Còn treo: tách
 `decide-actions.spec.tsx` thành `it.each` theo tiền lệ `refund-panel` (07/09),
 vì chi phí test đó tăng theo số mã stale của contract nên nâng trần chỉ dời ngày
 đội trần.
+
+## AMEND 2 — 16/11/2026: phanh chống treo nằm ở từng job
+
+CI tách thành các job chạy song song (PR #89, xem `docs/CHANGELOG.md` ngày 16/11): hai phần `test:int`, `web`,
+`admin`, phần còn lại, và job `gate` gom kết quả. Mục 3 ở AMEND trên vẫn đúng về nguyên tắc (`testTimeout` không phải
+phanh, phanh là `timeout-minutes` cấp job), chỉ đổi con số: mỗi job làm việc giờ `timeout-minutes: 15`, khoảng 3 lần
+job dài nhất đo được, thay cho 25 phút của job gate duy nhất trước đây. Job `gate` chỉ gom kết quả nên để 5 phút.
+Thêm bước vào job nào thì rà lại con số của job đó.

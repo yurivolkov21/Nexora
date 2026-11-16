@@ -175,8 +175,13 @@ auditConfig:
 
 # Vá lỗ hổng bảo mật ở dependency bắc cầu (medium: middleware bypass qua
 # serveStatic). Đường đi: prisma CLI (devDep) → @prisma/dev → @hono/node-server.
-# Ta không dùng Hono, và prisma là devDependency nên không vào bundle prod —
-# nhưng vẫn ghim bản vá để repo sạch alert.
+# Ta không dùng Hono, và API không bao giờ nạp nó — nhưng vẫn ghim bản vá để repo
+# sạch alert. (Sửa 16/11: câu cũ "prisma là devDependency nên không vào bundle
+# prod" là sai. Đo bằng đúng lệnh `pnpm --filter=@tourism/api --prod deploy` của
+# Dockerfile: image VẪN có prisma, @prisma/dev, hono, @hono/node-server, cùng
+# @expo/cli và node-forge, vì là peer tuỳ chọn của better-auth, @prisma/client và
+# @better-auth/expo. Chạy API từ đúng thư mục đó, gọi các route chính, không module
+# nào của các gói này được nạp: chúng nằm trên đĩa chứ không chạy.)
 # Ghim trong dòng 1.x: '>=1.19.13' sẽ kéo lên 2.0.x (nhảy major) và có thể phá
 # @prisma/dev vốn khai báo cho 1.x.
 # 23/07 — alert Dependabot #2 (path traversal serve-static, CHỈ Windows, vá ở

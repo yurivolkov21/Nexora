@@ -8,6 +8,43 @@ Một entry mỗi merge: ngày · hash · nội dung · review findings · "Test
 > Entry đã ghi là BẤT BIẾN (cùng luật `migration.sql`) — archive là di chuyển
 > nguyên văn, không sửa một ký tự.
 
+## 2026-11-16 — Merge vá node-forge, hono, @hono/node-server bắc cầu theo 10 alert Dependabot (`b04a2340`, `59f9a17c`)
+
+Yuri báo 16/11: tab Dependabot có 10 alert mới (#125 tới #134), GitHub đếm "8 moderate, 2 low", khớp đúng 10 GHSA
+mà `pnpm audit` thấy ngoài `ignoreGhsas`, đều bắc cầu, chỉ trong `pnpm-lock.yaml`. Nhánh
+`claude/project-thread-6vb5zh`, [PR #88](https://github.com/yurivolkov21/Tourism-Platform-V2/pull/88), session cloud.
+Không migration, không biến env, không đổi dependency trực tiếp nào: chỉ bản patch cùng major của gói bắc cầu, nên
+không cần ngoại lệ freeze 31/10. Báo cáo từng alert: `security/dependabot-2026-11-16.md` trong thư mục chung của
+project.
+
+- `b04a2340` (fix deps): siết ba override trong `pnpm-workspace.yaml`. `node-forge@<1.4.3: ^1.4.3` (GHSA-6cv4-p8m7-4r25,
+  GHSA-w4xr-hqv8-ch44, GHSA-j8rw-jp99-435v, GHSA-6889-vf6x-f3g5), `hono@<4.13.16: ^4.13.16` (GHSA-46wx-v44x-9hh2,
+  GHSA-4m76-xfj5-7975, GHSA-h7mg-cq63-vhpq, GHSA-4h7h-rv7c-7m2v, GHSA-3gg2-335m-rxc6), `'@hono/node-server':
+  '^1.19.18'` (GHSA-jpvv-r467-5p4w, vẫn dòng 1.x theo quyết định 23/07). Lock đổi đúng ba gói: node-forge 1.4.2 lên
+  1.4.3, hono 4.13.13 lên 4.13.18, @hono/node-server 1.19.17 lên 1.19.19. Bản mới nhất ra 11/11, qua
+  `minimumReleaseAge` nên không thêm exclude. `pnpm audit --audit-level=moderate` exit 0.
+- `59f9a17c` (docs deps): sửa ghi chú sai ở đầu khối `overrides`. Câu "prisma là devDependency nên không vào bundle
+  prod" là sai: chạy đúng lệnh `pnpm --filter=@tourism/api --prod deploy` của Dockerfile thì image API vẫn có prisma,
+  @prisma/dev, hono, @hono/node-server, @expo/cli và node-forge, vì là peer tuỳ chọn của better-auth, @prisma/client và
+  @better-auth/expo.
+- Docs sweep: ngày bảo vệ đổi thành 26/11/2026 (Yuri chốt 16/11) ở `CLAUDE.md` và mốc thời gian của
+  `docs/open-items.md`.
+
+**Ảnh hưởng prod.** Không alert nào với tới. node-forge chỉ do `@expo/cli` dùng; hono và @hono/node-server là server của
+`prisma dev` và `shadcn mcp`, dự án không có app Hono nào. Chạy API từ thư mục `--prod deploy` nói trên với hook ghi lại
+mọi module được nạp (`registerHooks` của `node:module`), gọi health, tours, destinations, posts, get-session và một lần
+đăng nhập sai: không module nào của sáu gói kể trên được nạp.
+
+**Review.** Không có lượt review độc lập. Tự kiểm: `pnpm audit --json` ra 0 advisory ngoài `ignoreGhsas` (main ra 10),
+diff lock chỉ +3 −3 gói, CI của PR xanh hai lượt.
+
+**CÒN TREO (sau deploy):** đổi lock ở gốc nên Render build lại API (Vercel có thể build lại web, admin); xem log deploy
+không lỗi. Alert #125 tới #134 tự đóng khi Dependabot quét lại lock trên main, không cần dismiss.
+
+Tests after (`gate:int` trong container cloud trên `59f9a17c`, API sống ở :3001 như bước CI): unit 8830 (web 2520,
+admin 2460, api 1486, mobile 1069, contract 833, mobile-ui 259, ui 65, i18n 63, core 49, tokens 26) và int 985; gate
+28/28 task; Biome 2171 file. PR không thêm test.
+
 ## 2026-11-12 — Merge ô Region của form Contact trang chủ dùng Select của design system (`b2648121`)
 
 Yuri chụp màn hình 12/11: ô REGION ở form Contact cuối trang chủ là `<select>` gốc, danh sách do trình duyệt vẽ nên lệch

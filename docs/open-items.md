@@ -1,6 +1,6 @@
 # Việc còn treo
 
-> Bản tóm tắt để điều hướng, cập nhật 12/11/2026. **Chỉ giữ việc còn mở**; mục đã
+> Bản tóm tắt để điều hướng, cập nhật 16/11/2026. **Chỉ giữ việc còn mở**; mục đã
 > đóng (gồm các mã G đã gạch) nằm ở [open-items-closed.md](open-items-closed.md),
 > chép nguyên văn. **Không phải nguồn sự thật** — chi tiết của từng mục sống ở
 > [CHANGELOG](CHANGELOG.md) (mục "CÒN TREO" của entry tương ứng) và ở
@@ -18,7 +18,7 @@
 | --- | --- |
 | **31/10/2026** | **Freeze**: ngừng nâng cấp thư viện, ngừng đổi nơi deploy. Dời từ 15/10 ([ADR-0001 AMEND 3](adr/0001-tech-stack.md)) |
 | tuần 02–08/11/2026 | Thuyết trình thử, trước buổi bảo vệ (Yuri 19/10: đầu tháng 11, tuần thứ ba tính từ 19/10; chưa có ngày cụ thể) |
-| ~16/11/2026 | Bảo vệ đồ án (chủ dự án 15/10: còn khoảng 4 tuần tính từ thứ Hai 19/10; trước đó ghi ~11/11) |
+| **26/11/2026** | Bảo vệ đồ án (Yuri chốt 16/11; trước đó ghi ~16/11, theo chủ dự án 15/10 "còn khoảng 4 tuần tính từ thứ Hai 19/10", và trước nữa ~11/11) |
 
 ## Phần chưa xây
 

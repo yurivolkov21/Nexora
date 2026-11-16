@@ -9,7 +9,7 @@ hành đã chứng minh ở Nexora, cập nhật cho toolchain mới.
 
 ## Dự án là gì
 
-Capstone tốt nghiệp (bảo vệ dự kiến ~16/11/2026, có buổi thuyết trình thử trước đó) — nền tảng đặt tour vận
+Capstone tốt nghiệp (bảo vệ **26/11/2026**, user chốt 16/11; trước đó ghi ~16/11; có buổi thuyết trình thử trước đó) — nền tảng đặt tour vận
 hành như trang thương mại thật nhưng **không doanh thu**: Stripe/PayPal luôn ở
 test/sandbox mode. Rebuild nâng cấp từ Nexora. **Bản sao Nexora không còn trên
 máy** (user chốt 14/09/2026 không clone lại) — mọi đối chiếu từ nay đọc các bản

@@ -203,7 +203,11 @@ overrides:
   # chỉ gate mới bắt được.
   # Ghim ĐÚNG bản đang chạy — hạ xuống cho khớp, KHÔNG phải nâng cấp.
   '@types/react': '19.2.17'
-  '@hono/node-server': '^1.19.13'
+  # 16/11 siết từ '^1.19.13' lên '^1.19.18' (GHSA-jpvv-r467-5p4w, moderate — dấu
+  # `\` trong path bị hiểu là dấu phân cách, vượt kiểm soát truy cập theo path khi
+  # đứng sau reverse proxy). Vẫn trong dòng 1.x theo quyết định 23/07 ở trên; đường
+  # kéo vẫn là prisma CLI → @prisma/dev (server của `prisma dev`, không chạy ở prod).
+  '@hono/node-server': '^1.19.18'
   # Alert #6 (high, libvips CVE 2026-33327/28 + 35590/91): sharp là optional dep
   # của Next (image optimization, CÓ chạy ở prod) nhưng Next khai báo ^0.34 —
   # ép qua override lên dòng đã vá.
@@ -326,7 +330,15 @@ overrides:
   # 26/10 nới lên <4.13.11: GHSA-5r4p-p66f-jhc7 (moderate — `serveStatic` giải mã
   # path lần hai nên vượt được middleware trên đường tĩnh). Đường kéo vẫn là
   # prisma CLI → @prisma/dev; prisma vẫn là devDependency.
-  hono@<4.13.11: ^4.13.11
+  # 16/11 nới lên <4.13.16: năm advisory mới (Dependabot mở alert 13–14/11), đều
+  # vá ở 4.13.16 —
+  # GHSA-46wx-v44x-9hh2 (`csrf()` bỏ qua request `text/ping`), GHSA-4m76-xfj5-7975
+  # (`mount()` chuyển path lọt middleware), GHSA-h7mg-cq63-vhpq (RegExpRouter bỏ
+  # middleware wildcard), GHSA-4h7h-rv7c-7m2v (`validator('form')` bỏ qua multipart
+  # có tham số thừa), GHSA-3gg2-335m-rxc6 (low — helper `css` không escape thẻ
+  # đóng). Đường kéo không đổi, và cả năm nằm ở tính năng của một app Hono mà
+  # dự án không có.
+  hono@<4.13.16: ^4.13.16
   # 29/09 — GỘP ba dòng ip-address của đợt 03/08 (`<=10.3.0`,
   # `>=10.1.1 <=10.2.0`, `>=10.1.1 <=10.2.1`) thành một. Hai advisory moderate
   # vào DB chung 28/09: GHSA-rpw4-54j3-4h4q (isLinkLocal() nhận fe80::/64 thay
@@ -505,7 +517,13 @@ overrides:
   # GHSA-8hrf-8g6f-7xwp, GHSA-hqq3-7jhf-c5jx, GHSA-5x38-2vff-x55p; cùng GHSA-86w9 đã
   # gỡ khỏi auditConfig): @expo/cli (ký code, HTTPS dev server). 1.4.1 ra 27/10,
   # cùng major nên không đổi API.
-  node-forge@<1.4.1: ^1.4.1
+  # 16/11 nới lên <1.4.3 (vẫn trong freeze, chỉ là bản patch của chính dòng này):
+  # GHSA-w4xr-hqv8-ch44 và GHSA-j8rw-jp99-435v (moderate — TLS client của forge
+  # chết khi server gửi ServerHello lạ), GHSA-6cv4-p8m7-4r25 (moderate — ReDoS khi
+  # cắt khoảng trắng header/cookie ở `forge.http`), GHSA-6889-vf6x-f3g5 (low —
+  # Ed25519 nhận public key bậc nhỏ). @expo/cli không dùng TLS client hay
+  # `forge.http` của forge. 1.4.3 ra 04/11.
+  node-forge@<1.4.3: ^1.4.3
   # systeminformation <5.33.16 (GHSA-3f7j-7jwc-fxfj high — chèn lệnh trên Windows;
   # GHSA-7648-jmwf-vw7j, GHSA-4vjg-vx72-qq4g): shadcn CLI → @dotenvx/dotenvx, chỉ
   # chạy khi gõ `shadcn` trên máy dev.

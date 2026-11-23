@@ -134,6 +134,12 @@ minimumReleaseAgeExclude:
 # >=9.0.0 <=14.0.1, AbortSignal hết hạn mà vẫn duyệt tiếp): glob 13 qua @expo/config
 # và react-email, chỉ chạy lúc build. Không có backport 13.x.
 # GỠ KHI: npm có bản vá cho đúng major đang dùng, hoặc các gói cha lên major mới.
+# 23/11 đo lại: dải dính là >=7.0.0 nên minimatch 3 và 5 (exceljs, jest) KHÔNG dính,
+# chỉ 9.0.9 (@swc/cli, dev của api) và 10.2.5 (@expo/fingerprint, ts-morph của
+# shadcn, glob 13). react-email là dependency chạy của api, nhưng chỉ
+# `dist/cli/index.mjs` của nó import glob; đường `render` của worker email không
+# nạp. npm vẫn chưa có backport 9.x hay 10.x (bản cuối 10.2.6 ra 27/07, trước
+# advisory).
 #
 # GHSA-rmxm-3fg6-px4f (moderate — @hono/node-server <2.1.3, `serveStatic` giải mã
 # path hai lần): prisma CLI (devDependency) → @prisma/dev; dòng 1.x vẫn bị ghim
@@ -156,6 +162,21 @@ minimumReleaseAgeExclude:
 # `cached-storage`, `withMobileAuth()` và mọi chỗ gọi, rồi build lại APK — không
 # làm sát ngày bảo vệ.
 # GỠ KHI: apps/mobile lên better-auth 1.7 (`pnpm why better-auth` không còn 1.6).
+#
+# 23/11 — GHSA-7589-6fvf-x4pw (high — effect <=3.22.0, ReDoS ở regex mà
+# `Schema.TemplateLiteral` biên dịch ra). Đường vào DUY NHẤT: prisma CLI →
+# @prisma/config@7.8.0, gói này GHIM CỨNG `effect: 3.20.0`. Không với tới:
+# (1) dist của @prisma/config không dùng `TemplateLiteral` lần nào (đo grep), mà lỗ
+# chỉ nổ ở schema dựng bằng hàm đó; (2) @prisma/config chỉ đọc `prisma.config.ts`
+# của chính mình lúc chạy CLI (generate, migrate), client sinh ra ở
+# `apps/api/src/generated` không import nó.
+# Vì sao không override như `deepmerge-ts` (cũng là dep của @prisma/config): bản vá
+# 3.22.1 là nhảy hai minor so với bản Prisma đã ghim, và lệnh prisma chạy trong
+# build của Render. Sát ngày bảo vệ 26/11, đổi ruột prisma CLI để vá một lỗ không
+# với tới là không đáng.
+# GỠ KHI: lên Prisma bản khai effect >=3.22.1, hoặc sau bảo vệ thì thử override
+# `effect@<3.22.1: ^3.22.1` và chạy `prisma generate`, `prisma migrate status`,
+# `pnpm gate:int` như đợt deepmerge-ts.
 auditConfig:
   ignoreGhsas:
     - GHSA-vcc3-ghjq-m6fr
@@ -172,6 +193,7 @@ auditConfig:
     - GHSA-r4xp-prcw-77qf
     - GHSA-q84f-53jg-9ppm
     - GHSA-44jh-23m7-hpcf
+    - GHSA-7589-6fvf-x4pw
 
 # Vá lỗ hổng bảo mật ở dependency bắc cầu (medium: middleware bypass qua
 # serveStatic). Đường đi: prisma CLI (devDep) → @prisma/dev → @hono/node-server.

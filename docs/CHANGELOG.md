@@ -8,6 +8,44 @@ Một entry mỗi merge: ngày · hash · nội dung · review findings · "Test
 > Entry đã ghi là BẤT BIẾN (cùng luật `migration.sql`) — archive là di chuyển
 > nguyên văn, không sửa một ký tự.
 
+## 2026-11-23 — Merge next 16.4.5 vá 21 alert Dependabot, ghi lý do bỏ qua effect và minimatch (`369a9a16`, `97f9bd65`)
+
+Yuri hỏi 23/11 về 23 alert Dependabot đang mở. Đọc API Dependabot (thread chạy trên máy Yuri, không bị 403 như
+session cloud): 23 alert chỉ là 9 GHSA ở 3 gói, vì mỗi GHSA của next ra 3 alert (`apps/web/package.json`,
+`apps/admin/package.json`, `pnpm-lock.yaml`). Nhánh `claude/project-thread-5v9w7g`,
+[PR #91](https://github.com/yurivolkov21/Tourism-Platform-V2/pull/91). Không migration, không biến env, không đụng
+Prisma, Expo hay better-auth. Báo cáo từng alert: `dependabot-2026-11-23.md` trong thư mục chung của project.
+
+- `369a9a16` (fix deps): `next` 16.4.3 lên 16.4.5 ở web và admin, vá 7 GHSA moderate (GHSA-mfr8-8qww-v76h,
+  GHSA-vc7v-qv4w-wrv8, GHSA-vvgp-ww4w-46vf, GHSA-rhh4-g77r-r9qj, GHSA-pc58-hwjq-p385, GHSA-7qx7-33qx-rqx2,
+  GHSA-f3mh-rxg3-f5g2; alert #136 tới #141, #143 tới #157). Release note của 16.4.5 chỉ có đúng 7 bản vá này; không
+  lên 16.4.6 vì bản đó thêm đổi hành vi (tự nén response của route handler). Ngoại lệ freeze 31/10 cho bản vá bảo mật,
+  Yuri duyệt khi giao việc. Lock chỉ đổi `next`, `@next/env`, `@next/swc-*`; khoá snapshot của better-auth đổi theo
+  peer `next`, version giữ nguyên. 16.4.5 ra 03/11, qua `minimumReleaseAge`, khai `sharp: ^0.35.5` khớp override sẵn có.
+- `97f9bd65` (chore deps): GHSA-7589-6fvf-x4pw (effect, high, alert #142) vào `ignoreGhsas`. Chỉ prisma CLI kéo qua
+  `@prisma/config@7.8.0`, gói này ghim cứng `effect: 3.20.0`, dist của nó không dùng `Schema.TemplateLiteral`, client
+  sinh ra không import nó; không override vì sẽ đổi ruột prisma CLI chạy trong build Render sát ngày bảo vệ.
+  GHSA-g3hv-75wg-m249 (minimatch, alert #135) đã bỏ qua từ 04/11; đo lại: chỉ minimatch 9.0.9 và 10.2.5 dính (dải
+  `>=7.0.0`), react-email chạy trong api nhưng chỉ phần CLI của nó import glob, npm chưa có backport 9.x hay 10.x.
+- Yuri tự dismiss #142 (not used) và #135 (tolerable risk) trên GitHub 23/11.
+
+**Ảnh hưởng prod.** Không GHSA nào với tới cấu hình hiện tại: không file nào dùng `'use cache'` hay `unstable_cache`,
+`cacheComponents` không bật, không route nào khai `runtime = 'edge'`, web dùng `loaderFile` Cloudinary nên
+`/_next/image` trả 404, admin không dùng `next/image`, cả hai chạy trên Vercel chứ không tự host. Vá next vì nó là
+dependency chạy thật và bản vá chỉ là patch.
+
+**Review.** Không có lượt review độc lập. Tự kiểm: `pnpm audit --json` ra 0 advisory ngoài `ignoreGhsas` (main ra 8),
+diff lock chỉ các gói next; CI của PR xanh 6/6 job.
+
+**CÒN TREO (sau deploy):** Vercel build lại web và admin; mở trang chủ, chi tiết tour và đăng nhập admin trên bản
+deploy. Xem lần chạy lịch của workflow Audit (23/11 02:00 UTC, sau merge) xanh. Alert next tự đóng khi Dependabot
+quét lại lock trên main.
+
+Tests after (`gate:int` trên máy Windows của Yuri trên `97f9bd65`, Postgres Docker và API sống ở :3001 như bước CI):
+unit 8830 (web 2520, admin 2460, api 1486, mobile 1069, contract 833, mobile-ui 259, ui 65, i18n 63, core 49, tokens
+26) và int 985; gate 28/28 task; Biome 2171 file. Lần chạy đầu `owner-gates.spec.tsx` của admin quá 30 giây khi cả gate
+chạy song song, chạy riêng xanh trong 5 giây, lần hai xanh hết. PR không thêm test.
+
 ## 2026-11-16 — Merge tách CI thành các job chạy song song (`e468a69f`, `c1bb4c50`)
 
 Yuri hỏi 16/11 vì sao CI chạy lâu, có phải dồn quá nhiều test. Đo 20 run main xanh (#915 tới #1029): trung vị 13,2
